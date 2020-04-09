@@ -1,0 +1,25 @@
+##########################################################################
+# 部署配置文件(base)
+# 本配置文件(xx.yml)中的变量(${xxx})是从同级目录下的.env文件中读取的
+##########################################################################
+# compose支持的版本2
+version: "2"
+services:
+  # rabbitmq
+  rabbitmq:
+    image: "${IMAGE_RABBITMQ}"
+    container_name: "rabbitmq_cluster.${PRODUCT_NAME}.${COMPANY_NAME}"
+    hostname: "rabbitmq01"
+    restart: "always"
+    env_file:
+      - ./rabbitmq.env
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./volume/rabbitmq/data:/var/lib/rabbitmq:rw
+    network_mode: "host"
+    extra_hosts:
+      - "rabbitmq01:${NODE_ADDR1}"
+      - "rabbitmq02:${NODE_ADDR2}"
+    # cap_add:
+    #   - NET_ADMIN
+    #   - SYS_ADMIN
