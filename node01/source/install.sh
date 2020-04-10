@@ -151,22 +151,8 @@ fun_install() {
     info "setup application"
     "${base_dir}"/compose.sh --setup
 
-    info "wait for application"
-    for i in {30..0}; do
-        flag=$(ss -antl | grep "\b${CHECK_PORT}\b" | wc -l || true)
-        if [ ${flag} > 0 ]; then
-            break
-        fi
-        echo 'application is starting, countdown [${i]] ...'
-        sleep 1
-    done
-    if [ "$i" = 0 ]; then
-        echo >&2 'application start failed.'
-        exit 1
-    fi
-
     info "run cluster script"
-    "${base_dir}"/cluster.sh
+    "${base_dir}"/cluster.sh --init
 
     echo ""
     success "successfully installed application."

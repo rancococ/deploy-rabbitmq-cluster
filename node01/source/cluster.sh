@@ -127,14 +127,31 @@ usage=$"`basename $0` [-h|--help] [--init]
 # init cluster
 fun_init_cluster() {
     header "init cluster : "
+
+    info "wait for rabbitmq"
+    for i in {30..0}; do
+        flag=$(docker exec -it rabbitmq_cluster rabbitmqctl ping | grep succeeded | wc -l || true)
+        if [[ ${flag} > 0 ]]; then
+            echo 'ok'
+            break
+        fi
+        echo "rabbitmq is starting, countdown [${i}] ..."
+        sleep 1
+    done
+    if [[ $i = 0 ]]; then
+        echo >&2 "rabbitmq start failed."
+        exit 1
+    fi
+
     info "rabbitmqctl stop_app"
-    docker exec -it rabbitmq_cluster.rabbitmq.cdjdgm.com rabbitmqctl stop_app
+    docker exec -it rabbitmq_cluster rabbitmqctl stop_app
     info "rabbitmqctl reset"
-    docker exec -it rabbitmq_cluster.rabbitmq.cdjdgm.com rabbitmqctl reset
+    docker exec -it rabbitmq_cluster rabbitmqctl reset
     info "rabbitmqctl start_app"
-    docker exec -it rabbitmq_cluster.rabbitmq.cdjdgm.com rabbitmqctl start_app
+    docker exec -it rabbitmq_cluster rabbitmqctl start_app
     info "rabbitmqctl set_policy"
-    docker exec -it rabbitmq_cluster.rabbitmq.cdjdgm.com rabbitmqctl set_policy -p / ha-all "^" '{"ha-mode":"all","ha-sync-mode":"automatic","ha-promote-on-shutdown":"always","ha-promote-on-failure":"always"}'
+    docker exec -it rabbitmq_cluster rabbitmqctl set_policy -p / ha-all "^" '{"ha-mode":"all","ha-sync-mode":"automatic","ha-promote-on-shutdown":"always","ha-promote-on-failure":"always"}'
+
     success "successfully initialized cluster"
     return 0
 }
