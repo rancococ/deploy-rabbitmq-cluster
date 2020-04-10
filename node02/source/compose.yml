@@ -9,7 +9,7 @@ services:
   rabbitmq:
     image: "${IMAGE_RABBITMQ}"
     container_name: "rabbitmq_cluster.${PRODUCT_NAME}.${COMPANY_NAME}"
-    hostname: "rabbitmq02"
+    hostname: "${CURRENT_NODE_HOSTNAME}.${PRODUCT_NAME}.${COMPANY_NAME}"
     restart: "always"
     env_file:
       - ./rabbitmq.env
@@ -18,8 +18,8 @@ services:
       - ./volume/rabbitmq/data:/var/lib/rabbitmq:rw
     network_mode: "host"
     extra_hosts:
-      - "rabbitmq01:${NODE_ADDR1}"
-      - "rabbitmq02:${NODE_ADDR2}"
+      - "${CLUSTER_NODE_HOSTNAME1}.${PRODUCT_NAME}.${COMPANY_NAME}:${CLUSTER_NODE_ADDRESS1}"
+      - "${CLUSTER_NODE_HOSTNAME2}.${PRODUCT_NAME}.${COMPANY_NAME}:${CLUSTER_NODE_ADDRESS2}"
     # cap_add:
     #   - NET_ADMIN
     #   - SYS_ADMIN

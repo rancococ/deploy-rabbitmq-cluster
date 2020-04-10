@@ -55,6 +55,11 @@ base_dir="$( cd -P "$( dirname "$source" )" && pwd )"
 cd "${base_dir}"
 
 # envirionment
+if [ -r "${base_dir}/.env" ]; then
+    while read line; do
+        eval "$line";
+    done < "${base_dir}/.env"
+fi
 
 # args flag
 arg_help=
@@ -135,13 +140,33 @@ usage=$"`basename $0` [-h|--help] [--install] [--uninstall]
 fun_install() {
     header "install application : "
 
-    info "deploy application";
+    info "deploy application"
     "${base_dir}"/deploy.sh --init
     "${base_dir}"/deploy.sh --load="${base_dir}"/images.tgz
     #"${base_dir}"/deploy.sh --deploy="${base_dir}"/data.war
 
-    info "setup application";
+    info "bind cluster ip"
+    "${base_dir}"/tool.sh --bind
+
+    info "setup application"
     "${base_dir}"/compose.sh --setup
+
+    info "wait for application"
+    for i in {30..0}; do
+        flag=$(ss -antl | grep "\b${CHECK_PORT}\b" | wc -l || true)
+        if [ ${flag} > 0 ]; then
+            break
+        fi
+        echo 'application is starting, countdown [${i]] ...'
+        sleep 1
+    done
+    if [ "$i" = 0 ]; then
+        echo >&2 'application start failed.'
+        exit 1
+    fi
+
+    info "run cluster script"
+    "${base_dir}"/cluster.sh
 
     echo ""
     success "successfully installed application."
@@ -161,6 +186,9 @@ fun_uninstall() {
     #if [ ! "x${result}" == "x" ]; then
     #    docker images -q --filter reference="registry.cdjdgm.com/*/*:*" | xargs docker rmi -f || true
     #fi
+
+    info "unbind cluster ip"
+    "${base_dir}"/tool.sh --unbind
 
     echo ""
     success "successfully uninstalled application."

@@ -1,10 +1,7 @@
 #!/usr/bin/env bash
 
 ##########################################################################
-# install.sh
-# for centos 7.x
-# author : yong.ran@cdjdgm.com
-# require : docker and docker-compose
+# cluster.sh
 ##########################################################################
 
 # set -x
@@ -63,8 +60,7 @@ fi
 
 # args flag
 arg_help=
-arg_install=
-arg_uninstall=
+arg_init=
 arg_empty=true
 
 # parse parameter
@@ -77,7 +73,7 @@ arg_empty=true
 # -- it is also an option. for example, to create a directory named "-f", "mkdir -- -f" will be used
 # $@ take the parameter list from the command line
 # args=`getopt -o ab:c:: -a -l apple,banana:,cherry:: -n "${source}" -- "$@"`
-args=`getopt -o h -a -l help,install,uninstall -n "${source}" -- "$@"`
+args=`getopt -o h -a -l help,init -n "${source}" -- "$@"`
 # terminate the execution when there is an error in the execution of getopt
 if [ $? != 0 ]; then
     error "terminating..." >&2
@@ -96,15 +92,9 @@ do
             arg_empty=false
             shift
             ;;
-        --install | -install)
-            info "option --install"
-            arg_install=true
-            arg_empty=false
-            shift
-            ;;
-        --uninstall | -uninstall)
-            info "option --uninstall"
-            arg_uninstall=true
+        --init | -init)
+            info "option --init"
+            arg_init=true
             arg_empty=false
             shift
             ;;
@@ -113,7 +103,7 @@ do
             break
             ;;
         *)
-            error "Internal error!"
+            error "internal error!"
             exit 1
             ;;
     esac
@@ -127,72 +117,25 @@ done
 ##########################################################################
 
 # show usage
-usage=$"`basename $0` [-h|--help] [--install] [--uninstall]
+usage=$"`basename $0` [-h|--help] [--init]
        [-h|--help]
-                  show help info.
-       [--install]
-                  install application.
-       [--uninstall]
-                  uninstall application.
+                       show help info.
+       [--init]
+                       init cluster.
 "
 
-# install
-fun_install() {
-    header "install application : "
-
-    info "deploy application"
-    "${base_dir}"/deploy.sh --init
-    "${base_dir}"/deploy.sh --load="${base_dir}"/images.tgz
-    #"${base_dir}"/deploy.sh --deploy="${base_dir}"/data.war
-
-    info "bind cluster ip"
-    "${base_dir}"/tool.sh --bind
-
-    info "setup application"
-    "${base_dir}"/compose.sh --setup
-
-    info "wait for application"
-    for i in {30..0}; do
-        flag=$(ss -antl | grep "\b${CHECK_PORT}\b" | wc -l || true)
-        if [ ${flag} > 0 ]; then
-            break
-        fi
-        echo 'application is starting, countdown [${i]] ...'
-        sleep 1
-    done
-    if [ "$i" = 0 ]; then
-        echo >&2 'application start failed.'
-        exit 1
-    fi
-
-    info "run cluster script"
-    "${base_dir}"/cluster.sh
-
-    echo ""
-    success "successfully installed application."
-
-    return 0
-}
-
-# uninstall
-fun_uninstall() {
-    header "uninstall application : "
-
-    info "down application"
-    "${base_dir}"/compose.sh --down
-
-    #info "remove images"
-    #result=$(docker images -q --filter reference="registry.cdjdgm.com/*/*:*")
-    #if [ ! "x${result}" == "x" ]; then
-    #    docker images -q --filter reference="registry.cdjdgm.com/*/*:*" | xargs docker rmi -f || true
-    #fi
-
-    info "unbind cluster ip"
-    "${base_dir}"/tool.sh --unbind
-
-    echo ""
-    success "successfully uninstalled application."
-
+# init cluster
+fun_init_cluster() {
+    header "init cluster : "
+    info "rabbitmqctl stop_app"
+    docker exec -it rabbitmq_cluster.rabbitmq.cdjdgm.com rabbitmqctl stop_app
+    info "rabbitmqctl reset"
+    docker exec -it rabbitmq_cluster.rabbitmq.cdjdgm.com rabbitmqctl reset
+    info "rabbitmqctl start_app"
+    docker exec -it rabbitmq_cluster.rabbitmq.cdjdgm.com rabbitmqctl start_app
+    info "rabbitmqctl set_policy"
+    docker exec -it rabbitmq_cluster.rabbitmq.cdjdgm.com rabbitmqctl set_policy -p / ha-all "^" '{"ha-mode":"all","ha-sync-mode":"automatic","ha-promote-on-shutdown":"always","ha-promote-on-failure":"always"}'
+    success "successfully initialized cluster"
     return 0
 }
 
@@ -210,28 +153,9 @@ if [ "x${arg_help}" == "xtrue" ]; then
     exit 1
 fi
 
-# either install or uninstall must be entered
-if [[ "x${arg_install}" == "xfalse" && "x${arg_uninstall}" == "xfalse" ]]; then
-    error "either install or uninstall must be entered"
-    usage "$usage";
-    exit 1
-fi
-
-# cannot enter install and uninstall at the same time
-if [[ "x${arg_install}" == "xtrue" && "x${arg_uninstall}" == "xtrue" ]]; then
-    error "cannot enter install and uninstall at the same time"
-    usage "$usage";
-    exit 1
-fi
-
-# install
-if [ "x${arg_install}" == "xtrue" ]; then
-    fun_install;
-fi
-
-# uninstall
-if [ "x${arg_uninstall}" == "xtrue" ]; then
-    fun_uninstall;
+# init cluster
+if [ "x${arg_init}" == "xtrue" ]; then
+    fun_init_cluster;
 fi
 
 echo ""

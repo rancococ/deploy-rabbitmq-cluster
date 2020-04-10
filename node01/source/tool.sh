@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 
 ##########################################################################
-# install.sh
-# for centos 7.x
-# author : yong.ran@cdjdgm.com
-# require : docker and docker-compose
+# tool.sh
+# --bind     : bind ip address
+# --unbind   : unbind ip address
 ##########################################################################
 
 # set -x
@@ -63,8 +62,10 @@ fi
 
 # args flag
 arg_help=
-arg_install=
-arg_uninstall=
+arg_bind=
+arg_bind_device=
+arg_unbind=
+arg_unbind_device=
 arg_empty=true
 
 # parse parameter
@@ -77,7 +78,7 @@ arg_empty=true
 # -- it is also an option. for example, to create a directory named "-f", "mkdir -- -f" will be used
 # $@ take the parameter list from the command line
 # args=`getopt -o ab:c:: -a -l apple,banana:,cherry:: -n "${source}" -- "$@"`
-args=`getopt -o h -a -l help,install,uninstall -n "${source}" -- "$@"`
+args=`getopt -o h -a -l help,bind::,unbind:: -n "${source}" -- "$@"`
 # terminate the execution when there is an error in the execution of getopt
 if [ $? != 0 ]; then
     error "terminating..." >&2
@@ -96,24 +97,26 @@ do
             arg_empty=false
             shift
             ;;
-        --install | -install)
-            info "option --install"
-            arg_install=true
+        --bind | -bind)
+            info "option --bind argument : $2"
+            arg_bind=true
             arg_empty=false
-            shift
+            arg_bind_device=$2
+            shift 2
             ;;
-        --uninstall | -uninstall)
-            info "option --uninstall"
-            arg_uninstall=true
+        --unbind | -unbind)
+            info "option --unbind argument : $2"
+            arg_unbind=true
             arg_empty=false
-            shift
+            arg_unbind_device=$2
+            shift 2
             ;;
         --)
             shift
             break
             ;;
         *)
-            error "Internal error!"
+            error "internal error!"
             exit 1
             ;;
     esac
@@ -127,72 +130,44 @@ done
 ##########################################################################
 
 # show usage
-usage=$"`basename $0` [-h|--help] [--install] [--uninstall]
+usage=$"`basename $0` [-h|--help] [--bind=ens33] [--unbind=ens33]
        [-h|--help]
-                  show help info.
-       [--install]
-                  install application.
-       [--uninstall]
-                  uninstall application.
+                       show help info.
+       [--bind=ens33]
+                       bind ip address for device.
+       [--unbind=ens33]
+                       unbind ip address for device.
 "
 
-# install
-fun_install() {
-    header "install application : "
-
-    info "deploy application"
-    "${base_dir}"/deploy.sh --init
-    "${base_dir}"/deploy.sh --load="${base_dir}"/images.tgz
-    #"${base_dir}"/deploy.sh --deploy="${base_dir}"/data.war
-
-    info "bind cluster ip"
-    "${base_dir}"/tool.sh --bind
-
-    info "setup application"
-    "${base_dir}"/compose.sh --setup
-
-    info "wait for application"
-    for i in {30..0}; do
-        flag=$(ss -antl | grep "\b${CHECK_PORT}\b" | wc -l || true)
-        if [ ${flag} > 0 ]; then
-            break
-        fi
-        echo 'application is starting, countdown [${i]] ...'
-        sleep 1
-    done
-    if [ "$i" = 0 ]; then
-        echo >&2 'application start failed.'
-        exit 1
-    fi
-
-    info "run cluster script"
-    "${base_dir}"/cluster.sh
-
-    echo ""
-    success "successfully installed application."
-
+# bind ip
+fun_bind_ip() {
+    header "bind ip : "
+    bind_device_temp=${arg_bind_device:-"${CURRENT_NODE_DEVICE}"}
+    bind_address_temp=${CURRENT_NODE_ADDRESS}
+    info "delete ipv4.addr ${bind_address_temp} for ${bind_device_temp}"
+    nmcli connection modify "${bind_device_temp}" -ipv4.addr "${bind_address_temp}" 2>/dev/null || true
+    info "add ipv4.addr ${bind_address_temp} for ${bind_device_temp}"
+    nmcli connection modify "${bind_device_temp}" +ipv4.addr "${bind_address_temp}" 2>/dev/null || true
+    info "restart network service"
+    systemctl restart network
+    info "show ip addr for ${bind_device_temp}"
+    ip addr show "${bind_device_temp}"
+    success "successfully binded ip"
     return 0
 }
 
-# uninstall
-fun_uninstall() {
-    header "uninstall application : "
-
-    info "down application"
-    "${base_dir}"/compose.sh --down
-
-    #info "remove images"
-    #result=$(docker images -q --filter reference="registry.cdjdgm.com/*/*:*")
-    #if [ ! "x${result}" == "x" ]; then
-    #    docker images -q --filter reference="registry.cdjdgm.com/*/*:*" | xargs docker rmi -f || true
-    #fi
-
-    info "unbind cluster ip"
-    "${base_dir}"/tool.sh --unbind
-
-    echo ""
-    success "successfully uninstalled application."
-
+# unbind ip
+fun_unbind_ip() {
+    header "unbind ip : "
+    bind_device_temp=${arg_bind_device:-"${CURRENT_NODE_DEVICE}"}
+    bind_address_temp=${CURRENT_NODE_ADDRESS}
+    info "delete ipv4.addr ${bind_address_temp} for ${bind_device_temp}"
+    nmcli connection modify "${bind_device_temp}" -ipv4.addr "${bind_address_temp}" 2>/dev/null || true
+    info "restart network service"
+    systemctl restart network
+    info "show ip addr for ${bind_device_temp}"
+    ip addr show "${bind_device_temp}"
+    success "successfully unbinded ip"
     return 0
 }
 
@@ -210,28 +185,28 @@ if [ "x${arg_help}" == "xtrue" ]; then
     exit 1
 fi
 
-# either install or uninstall must be entered
-if [[ "x${arg_install}" == "xfalse" && "x${arg_uninstall}" == "xfalse" ]]; then
-    error "either install or uninstall must be entered"
+# either bind or unbind must be entered
+if [[ "x${arg_bind}" == "xfalse" && "x${arg_unbind}" == "xfalse" ]]; then
+    error "either bind or unbind must be entered"
     usage "$usage";
     exit 1
 fi
 
-# cannot enter install and uninstall at the same time
-if [[ "x${arg_install}" == "xtrue" && "x${arg_uninstall}" == "xtrue" ]]; then
-    error "cannot enter install and uninstall at the same time"
+# cannot enter bind and unbind at the same time
+if [[ "x${arg_bind}" == "xtrue" && "x${arg_unbind}" == "xtrue" ]]; then
+    error "cannot enter bind and unbind at the same time"
     usage "$usage";
     exit 1
 fi
 
-# install
-if [ "x${arg_install}" == "xtrue" ]; then
-    fun_install;
+# bind ip
+if [ "x${arg_bind}" == "xtrue" ]; then
+    fun_bind_ip;
 fi
 
-# uninstall
-if [ "x${arg_uninstall}" == "xtrue" ]; then
-    fun_uninstall;
+# unbind ip
+if [ "x${arg_unbind}" == "xtrue" ]; then
+    fun_unbind_ip;
 fi
 
 echo ""

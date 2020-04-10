@@ -1,0 +1,18 @@
+1.在node01上执行:
+docker exec -it rabbitmq_cluster.rabbitmq.cdjdgm.com rabbitmqctl stop_app
+docker exec -it rabbitmq_cluster.rabbitmq.cdjdgm.com rabbitmqctl reset
+docker exec -it rabbitmq_cluster.rabbitmq.cdjdgm.com rabbitmqctl start_app
+docker exec -it rabbitmq_cluster.rabbitmq.cdjdgm.com rabbitmqctl set_policy -p / ha-all "^" '{"ha-mode":"all","ha-sync-mode":"automatic","ha-promote-on-shutdown":"always","ha-promote-on-failure":"always"}'
+
+2.在node02上执行:
+docker exec -it rabbitmq_cluster.rabbitmq.cdjdgm.com rabbitmqctl stop_app
+docker exec -it rabbitmq_cluster.rabbitmq.cdjdgm.com rabbitmqctl reset
+docker exec -it rabbitmq_cluster.rabbitmq.cdjdgm.com rabbitmqctl join_cluster rabbit@rabbitmq01.rabbitmq.cdjdgm.com
+docker exec -it rabbitmq_cluster.rabbitmq.cdjdgm.com rabbitmqctl start_app
+
+3.ha镜像模式可选值：
+ha-mode:all,exactly,nodes
+ha-params:Absent if ha-mode is all, a number if ha-mode is exactly, or a list of strings if ha-mode is nodes.
+ha-sync-mode:manual,automatic
+ha-promote-on-shutdown:when-synced,always
+ha-promote-on-failure:when-synced,always
