@@ -130,7 +130,7 @@ fun_init_cluster() {
 
     info "wait for rabbitmq"
     for i in {30..0}; do
-        flag=$(docker exec -it rabbitmq_cluster rabbitmqctl ping | grep succeeded | wc -l || true)
+        flag=$(docker exec -it "${CONTAINER_NAME}" rabbitmqctl ping | grep succeeded | wc -l || true)
         if [[ ${flag} > 0 ]]; then
             echo 'ok'
             break
@@ -144,13 +144,13 @@ fun_init_cluster() {
     fi
 
     info "rabbitmqctl stop_app"
-    docker exec -it rabbitmq_cluster rabbitmqctl stop_app
+    docker exec -it "${CONTAINER_NAME}" rabbitmqctl stop_app
     info "rabbitmqctl reset"
-    docker exec -it rabbitmq_cluster rabbitmqctl reset
+    docker exec -it "${CONTAINER_NAME}" rabbitmqctl reset
     info "rabbitmqctl join_cluster"
-    docker exec -it rabbitmq_cluster rabbitmqctl join_cluster rabbit@${CLUSTER_NODE_HOSTNAME1}
+    docker exec -it "${CONTAINER_NAME}" rabbitmqctl join_cluster "rabbit@${CLUSTER_NODE_HOSTNAME1}"
     info "rabbitmqctl start_app"
-    docker exec -it rabbitmq_cluster rabbitmqctl start_app
+    docker exec -it "${CONTAINER_NAME}" rabbitmqctl start_app
     success "successfully initialized cluster"
     return 0
 }
